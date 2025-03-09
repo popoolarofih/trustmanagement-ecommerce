@@ -12,12 +12,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
+//import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useAuth } from "@/hooks/use-auth"
 import { userSchema } from "@/lib/trust-system"
+import { auth, db } from "@/lib/firebase"
+import { createUserWithEmailAndPassword } from "firebase/auth"
+import { doc, setDoc } from "firebase/firestore"
 
 export default function SignupPage() {
   const [name, setName] = useState("")
@@ -28,15 +29,13 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const { register } = useAuth()
+  const router = useRouter()
 
   // Calculate password strength
   const calculatePasswordStrength = (password: string): number => {
     if (!password) return 0
     let strength = 0
-    // Length check
     if (password.length >= 8) strength += 20
-    // Character type checks
     if (/[A-Z]/.test(password)) strength += 20
     if (/[a-z]/.test(password)) strength += 20
     if (/[0-9]/.test(password)) strength += 20
@@ -60,6 +59,7 @@ export default function SignupPage() {
     return "bg-green-500"
   }
 
+  // Validate form inputs using Zod schema
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
     try {
@@ -73,7 +73,6 @@ export default function SignupPage() {
         })
       }
     }
-    // Check if passwords match
     if (password !== confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match"
     }
@@ -81,25 +80,34 @@ export default function SignupPage() {
     return Object.keys(newErrors).length === 0
   }
 
+  // Handle account creation directly with Firebase Auth and Firestore
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) return
+
     setLoading(true)
     try {
-      const result = await register({
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+
+      // Save additional user data in Firestore
+      await setDoc(doc(db, "users", user.uid), {
         name,
         email,
-        password,
         role,
+        createdAt: new Date().toISOString(),
+        trustScore: role === "vendor" ? 3 : 5, // Initial trust score
       })
-      if (result.success) {
-        toast.success("Account created successfully", {
-          description: "Your account has been created. Welcome!",
-        })
+
+      toast.success("Account created successfully", {
+        description: "Your account has been created. Welcome!",
+      })
+
+      // Redirect based on role
+      if (role === "vendor") {
+        router.push("/vendor/dashboard")
       } else {
-        toast.error("Account creation failed", {
-          description: result.error || "Please try again.",
-        })
+        router.push("/products")
       }
     } catch (error: any) {
       toast.error("Account creation failed", {

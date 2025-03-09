@@ -1,18 +1,20 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
+import React, { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { signInWithEmailAndPassword } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
+import { toast, Toaster } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Eye, EyeOff, ShieldCheck } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
 import { z } from "zod"
 import { loginSchema } from "@/lib/trust-system"
-import { toast, Toaster } from "sonner"
+import { auth, db } from "@/lib/firebase"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -20,7 +22,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const { login } = useAuth()
+  const router = useRouter()
 
   const validateForm = () => {
     try {
@@ -43,21 +45,36 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-
     if (!validateForm()) return
 
     setLoading(true)
-
     try {
-      const result = await login(email, password)
-      if (result.success) {
-        toast.success("Login successful", {
-          description: "Welcome back!",
-        })
-      } else {
+      // Authenticate user using Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+
+      // Fetch user document from Firestore to determine role
+      const userDoc = await getDoc(doc(db, "users", user.uid))
+      if (!userDoc.exists()) {
         toast.error("Login failed", {
-          description: result.error || "Invalid credentials.",
+          description: "User data not found.",
         })
+        setLoading(false)
+        return
+      }
+      const userData = userDoc.data()
+
+      toast.success("Login successful", {
+        description: "Welcome back!",
+      })
+
+      // Redirect based on role
+      if (userData.role === "admin") {
+        router.push("/admin/dashboard")
+      } else if (userData.role === "vendor") {
+        router.push("/vendor/dashboard")
+      } else {
+        router.push("/products")
       }
     } catch (error: any) {
       toast.error("Login failed", {
@@ -70,7 +87,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-muted/30">
-      {/* Toast Component */}
+      {/* Toaster for displaying toast notifications */}
       <Toaster position="top-right" />
       <Card className="w-full max-w-md">
         <CardHeader>
