@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -13,6 +12,7 @@ import { AlertCircle, Eye, EyeOff, ShieldCheck } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { z } from "zod"
 import { loginSchema } from "@/lib/trust-system"
+import { toast, Toaster } from "sonner"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -49,7 +49,20 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(email, password)
+      const result = await login(email, password)
+      if (result.success) {
+        toast.success("Login successful", {
+          description: "Welcome back!",
+        })
+      } else {
+        toast.error("Login failed", {
+          description: result.error || "Invalid credentials.",
+        })
+      }
+    } catch (error: any) {
+      toast.error("Login failed", {
+        description: error.message || "An unexpected error occurred.",
+      })
     } finally {
       setLoading(false)
     }
@@ -57,6 +70,8 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-muted/30">
+      {/* Toast Component */}
+      <Toaster position="top-right" />
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="flex items-center gap-2 mb-2">
@@ -115,7 +130,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <Alert variant="outline" className="bg-accent/50 border-accent">
+            <Alert variant="default" className="bg-accent/50 border-accent">
               <AlertCircle className="h-4 w-4 text-accent-foreground" />
               <AlertDescription>
                 Your security is our priority. We use advanced encryption to protect your data.
@@ -139,4 +154,3 @@ export default function LoginPage() {
     </div>
   )
 }
-
