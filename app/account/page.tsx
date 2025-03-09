@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { toast } from "sonner"
+import { toast, Toaster } from "sonner"
 import { Star, ShieldCheck } from "lucide-react"
 
 export default function OrdersPage() {
@@ -29,38 +29,34 @@ export default function OrdersPage() {
   const [vendorRating, setVendorRating] = useState(5)
   const [openReviewDialog, setOpenReviewDialog] = useState(false)
   const router = useRouter()
-  // const { toast } = useToast()
 
   useEffect(() => {
     const fetchOrders = async () => {
       const user = auth.currentUser
-
       if (!user) {
         router.push("/login")
         return
       }
-
       try {
         const ordersQuery = query(collection(db, "orders"), where("customerId", "==", user.uid))
-
         const ordersSnapshot = await getDocs(ordersQuery)
         const ordersData = ordersSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate?.() || new Date(),
         }))
-
         // Sort by date (newest first)
         ordersData.sort((a, b) => b.createdAt - a.createdAt)
-
         setOrders(ordersData)
       } catch (error) {
         console.error("Error fetching orders:", error)
+        toast.error("Error fetching orders", {
+          description: (error as any).message || "An unexpected error occurred while fetching orders.",
+        })
       } finally {
         setLoading(false)
       }
     }
-
     fetchOrders()
   }, [router])
 
@@ -81,7 +77,6 @@ export default function OrdersPage() {
       // Get current vendor data
       const vendorDoc = await getDoc(doc(db, "users", selectedOrder.vendorId))
       const vendorData = vendorDoc.data()
-
       if (!vendorData) {
         throw new Error("Vendor data not found")
       }
@@ -90,13 +85,11 @@ export default function OrdersPage() {
       const currentScore = vendorData.trustScore || 3
       const reviewCount = vendorData.reviewCount || 0
       const newReviewCount = reviewCount + 1
-
-      // Trust score is weighted: 70% previous score, 30% new rating
       const newTrustScore = reviewCount === 0 ? vendorRating : currentScore * 0.7 + vendorRating * 0.3
 
       // Update vendor trust score
       await updateDoc(doc(db, "users", selectedOrder.vendorId), {
-        trustScore: Math.round(newTrustScore * 10) / 10, // Round to 1 decimal place
+        trustScore: Math.round(newTrustScore * 10) / 10,
         reviewCount: newReviewCount,
       })
 
@@ -116,19 +109,21 @@ export default function OrdersPage() {
       })
 
       // Update local state
-      setOrders(orders.map((order) => (order.id === selectedOrder.id ? { ...order, reviewed: true } : order)))
+      setOrders(
+        orders.map((order) =>
+          order.id === selectedOrder.id ? { ...order, reviewed: true } : order
+        )
+      )
 
-      toast({
-        title: "Review submitted",
-        description: "Thank you for your feedback! Your review helps maintain our trust system.",
+      toast.success("Review submitted", {
+        description:
+          "Thank you for your feedback! Your review helps maintain our trust system.",
       })
 
       setOpenReviewDialog(false)
     } catch (error: any) {
-      toast({
-        title: "Error submitting review",
-        description: error.message || "An error occurred while submitting your review",
-        variant: "destructive",
+      toast.error("Error submitting review", {
+        description: error.message || "An error occurred while submitting your review.",
       })
     }
   }
@@ -145,6 +140,9 @@ export default function OrdersPage() {
 
   return (
     <div className="container max-w-4xl mx-auto px-4 py-8">
+      {/* Toast Component */}
+      <Toaster position="top-right" />
+
       <h1 className="text-3xl font-bold mb-8">My Orders</h1>
 
       {orders.length > 0 ? (
@@ -182,10 +180,10 @@ export default function OrdersPage() {
                       <Badge
                         variant={
                           order.status === "delivered"
-                            ? "success"
+                            ? "default"
                             : order.status === "processing"
-                              ? "warning"
-                              : "default"
+                            ? "secondary"
+                            : "outline"
                         }
                       >
                         {order.status}
@@ -280,4 +278,3 @@ export default function OrdersPage() {
     </div>
   )
 }
-
