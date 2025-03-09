@@ -6,7 +6,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { z } from "zod"
 import { toast, Toaster } from "sonner"
-import { Eye, EyeOff, ShieldCheck, AlertTriangle, Info } from "lucide-react"
+import { Eye, EyeOff, ShieldCheck, Info } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -85,11 +86,24 @@ export default function SignupPage() {
     if (!validateForm()) return
     setLoading(true)
     try {
-      await register({
+      const result = await register({
         name,
         email,
         password,
         role,
+      })
+      if (result.success) {
+        toast.success("Account created successfully", {
+          description: "Your account has been created. Welcome!",
+        })
+      } else {
+        toast.error("Account creation failed", {
+          description: result.error || "Please try again.",
+        })
+      }
+    } catch (error: any) {
+      toast.error("Account creation failed", {
+        description: error.message || "An unexpected error occurred.",
       })
     } finally {
       setLoading(false)
