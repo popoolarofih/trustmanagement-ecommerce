@@ -25,8 +25,8 @@ export default function AdminSignupPage() {
 
   const handleSignup = async (event: React.FormEvent) => {
     event.preventDefault()
-    
-    // Validate input using Zod schema
+
+    // Validate inputs using Zod schema
     try {
       userSchema.parse({ name, email, password, role: "admin" })
     } catch (error) {
@@ -39,14 +39,9 @@ export default function AdminSignupPage() {
     }
 
     setIsSubmitting(true)
-    try {
-      // Fetch IP and location info
-      const res = await fetch("https://ipinfo.io/json?token=ce8a4cc390c905")
-      const data = await res.json()
-      const ipAddress = data.ip
-      const location = `${data.city}, ${data.region}, ${data.country}`
 
-      // Create admin user in Firebase Auth
+    try {
+      // Create admin user using Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
 
@@ -59,14 +54,12 @@ export default function AdminSignupPage() {
         trustScore: 5, // default initial trust score
       })
 
-      // Log security event in Firestore
+      // Log security event in Firestore without IP/location info
       await addDoc(collection(db, "securityLogs"), {
         userId: user.uid,
         event: "admin_account_created",
         name,
         email,
-        ipAddress,
-        location,
         timestamp: new Date().toISOString(),
       })
 

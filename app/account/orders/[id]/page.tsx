@@ -99,7 +99,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
           </p>
         </div>
         <Badge
-          variant={order.status === "delivered" ? "success" : order.status === "processing" ? "warning" : "default"}
+          variant={order.status === "delivered" ? "secondary" : order.status === "processing" ? "outline" : "default"}
           className="mt-2 md:mt-0"
         >
           {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
