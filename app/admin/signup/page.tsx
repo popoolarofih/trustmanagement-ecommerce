@@ -1,49 +1,49 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { toast, Toaster } from "sonner"
-import { Eye, EyeOff, ShieldCheck } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { createUserWithEmailAndPassword } from "firebase/auth"
-import { doc, setDoc, addDoc, collection } from "firebase/firestore"
-import { auth, db } from "@/lib/firebase"
-import { z } from "zod"
-import { userSchema } from "@/lib/trust-system"
+import type React from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast, Toaster } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, addDoc, collection } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { z } from "zod";
+import { userSchema } from "@/lib/trust-system";
 
 export default function AdminSignupPage() {
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const router = useRouter()
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   const handleSignup = async (event: React.FormEvent) => {
-    event.preventDefault()
+    event.preventDefault();
 
     // Validate inputs using Zod schema
     try {
-      userSchema.parse({ name, email, password, role: "admin" })
+      userSchema.parse({ name, email, password, role: "admin" });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        toast.error("Validation error", {
-          description: error.errors.map((err) => err.message).join(", "),
-        })
+        toast.error(
+          "Validation error: " + error.errors.map((err) => err.message).join(", ")
+        );
       }
-      return
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
 
     try {
       // Create admin user using Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
       // Save admin details in Firestore with role "admin"
       await setDoc(doc(db, "users", user.uid), {
@@ -52,7 +52,7 @@ export default function AdminSignupPage() {
         role: "admin",
         createdAt: new Date().toISOString(),
         trustScore: 5, // default initial trust score
-      })
+      });
 
       // Log security event in Firestore without IP/location info
       await addDoc(collection(db, "securityLogs"), {
@@ -61,22 +61,18 @@ export default function AdminSignupPage() {
         name,
         email,
         timestamp: new Date().toISOString(),
-      })
+      });
 
-      toast.success("Admin account created", {
-        description: "Your admin account has been created successfully. Please verify your email.",
-      })
-
+      toast.success("Admin account created. Please verify your email.");
       // Redirect to admin dashboard
-      router.push("/admin/dashboard")
-    } catch (error: any) {
-      toast.error("Admin account creation failed", {
-        description: error.message || "An unexpected error occurred.",
-      })
+      router.push("/admin/dashboard");
+    } catch (error: unknown) {
+      const err = error as Error;
+      toast.error("Admin account creation failed: " + (err.message || "An unexpected error occurred."));
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <div className="flex justify-center items-center h-screen bg-gray-100">
@@ -139,5 +135,5 @@ export default function AdminSignupPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

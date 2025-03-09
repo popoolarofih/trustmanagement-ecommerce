@@ -1,216 +1,139 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
-import { db, auth } from "@/lib/firebase"
-import AdminLayout from "@/components/layouts/admin-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { User, ShoppingCart, Package, Users } from "lucide-react"
-import { toast } from "sonner"
+import type React from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast, Toaster } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, addDoc, collection } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { z } from "zod";
+import { userSchema } from "@/lib/trust-system";
 
-export default function AdminDashboard() {
-  const [vendors, setVendors] = useState<any[]>([])
-  const [orders, setOrders] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
-//   const { toast } = useToast()
+export default function AdminSignupPage() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
-  useEffect(() => {
-    // Check if user is admin
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        router.push("/login")
-        return
+  const handleSignup = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    // Validate inputs using Zod schema
+    try {
+      userSchema.parse({ name, email, password, role: "admin" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast.error(
+          "Validation error: " + error.errors.map((err) => err.message).join(", ")
+        );
       }
+      return;
+    }
 
-      // Fetch dashboard data
-      fetchDashboardData()
-    })
+    setIsSubmitting(true);
 
-    return () => unsubscribe()
-  }, [router])
-
-  const fetchDashboardData = async () => {
     try {
-      // Fetch vendors
-      const vendorsSnapshot = await getDocs(collection(db, "users"))
-      const vendorsData = vendorsSnapshot.docs
-        .filter((doc) => doc.data().role === "vendor")
-        .map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-      setVendors(vendorsData)
+      // Create admin user using Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-      // Fetch recent orders
-      const ordersSnapshot = await getDocs(collection(db, "orders"))
-      const ordersData = ordersSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
-      setOrders(ordersData.slice(0, 5)) // Get last 5 orders
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error)
+      // Save admin details in Firestore with role "admin"
+      await setDoc(doc(db, "users", user.uid), {
+        name,
+        email,
+        role: "admin",
+        createdAt: new Date().toISOString(),
+        trustScore: 5, // default initial trust score
+      });
+
+      // Log security event in Firestore without IP/location info
+      await addDoc(collection(db, "securityLogs"), {
+        userId: user.uid,
+        event: "admin_account_created",
+        name,
+        email,
+        timestamp: new Date().toISOString(),
+      });
+
+      toast.success("Admin account created. Please verify your email.");
+      // Redirect to admin dashboard
+      router.push("/admin/dashboard");
+    } catch (error: unknown) {
+      const err = error as Error;
+      toast.error("Admin account creation failed: " + (err.message || "An unexpected error occurred."));
     } finally {
-      setLoading(false)
+      setIsSubmitting(false);
     }
-  }
-
-  const updateVendorTrust = async (vendorId: string, newScore: number) => {
-    try {
-      await updateDoc(doc(db, "users", vendorId), {
-        trustScore: newScore,
-      })
-
-      // Update local state
-      setVendors(vendors.map((vendor) => (vendor.id === vendorId ? { ...vendor, trustScore: newScore } : vendor)))
-
-      toast({
-        title: "Trust score updated",
-        description: "Vendor trust score has been updated successfully.",
-      })
-    } catch (error) {
-      toast({
-        title: "Update failed",
-        description: "Failed to update vendor trust score.",
-        variant: "destructive",
-      })
-    }
-  }
+  };
 
   return (
-    <AdminLayout>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{orders.length}</div>
-          </CardContent>
-        </Card>
+    <div className="flex justify-center items-center h-screen bg-gray-100">
+      {/* Toast Component */}
+      <Toaster position="top-right" />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{vendors.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">128</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Customers</CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">2,431</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <h2 className="text-xl font-bold mt-8 mb-4">Vendors Trust Management</h2>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Trust Score</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {vendors.map((vendor) => (
-                <TableRow key={vendor.id}>
-                  <TableCell>{vendor.name}</TableCell>
-                  <TableCell>{vendor.email}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={vendor.trustScore >= 4 ? "success" : vendor.trustScore >= 2 ? "warning" : "destructive"}
-                    >
-                      {vendor.trustScore}/5
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateVendorTrust(vendor.id, Math.max(1, vendor.trustScore - 1))}
-                      disabled={vendor.trustScore <= 1}
-                    >
-                      -
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateVendorTrust(vendor.id, Math.min(5, vendor.trustScore + 1))}
-                      disabled={vendor.trustScore >= 5}
-                    >
-                      +
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Admin Signup</CardTitle>
+          <CardDescription>Create a new admin account</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? "Creating Account..." : "Create Account"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
-
-      <h2 className="text-xl font-bold mt-8 mb-4">Recent Orders</h2>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>{order.id.slice(0, 8)}</TableCell>
-                  <TableCell>{order.customerName}</TableCell>
-                  <TableCell>${order.totalAmount.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        order.status === "delivered" ? "success" : order.status === "processing" ? "warning" : "default"
-                      }
-                    >
-                      {order.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </AdminLayout>
-  )
+    </div>
+  );
 }
-
